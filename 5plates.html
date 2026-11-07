@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#14532d">
+<title>5 Plates</title>
+<style id="css">
+:root{--bg:#f6f5f1;--card:#fff;--ink:#1c1c1a;--mut:#6b6a64;--line:#e4e2db;--acc:#1f7a46;--acc2:#e8f3ec;--warn:#b45309;--warn2:#fdf1e3;--cheat:#6d4bb8;--cheat2:#efeafa;--miss:#c9c6bd}
+@media (prefers-color-scheme:dark){:root{--bg:#141413;--card:#1e1e1c;--ink:#ecebe6;--mut:#9c9a92;--line:#33322e;--acc:#4fbf7d;--acc2:#1d3326;--warn:#f0a050;--warn2:#3a2a17;--cheat:#a98bf0;--cheat2:#2a2340;--miss:#55534d}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-tap-highlight-color:transparent}
+#app{max-width:520px;margin:0 auto;padding:16px 16px 96px}
+h1{font-size:20px;margin:4px 0 2px}
+.sub{color:var(--mut);font-size:14px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px;margin:12px 0}
+.banner{border-radius:12px;padding:12px 14px;margin:10px 0;font-size:15px}
+.b-go{background:var(--acc2)}.b-warn{background:var(--warn2)}.b-cheat{background:var(--cheat2)}
+.count{text-align:center;padding:8px 0 4px}
+.big{font-size:64px;font-weight:700;line-height:1}
+.big small{font-size:24px;color:var(--mut);font-weight:500}
+.dots{display:flex;gap:8px;justify-content:center;margin:12px 0 4px}
+.dot{width:18px;height:18px;border-radius:50%;border:2px solid var(--acc)}
+.dot.f{background:var(--acc)}.dot.o{background:var(--warn);border-color:var(--warn)}
+input{font:inherit;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;width:100%}
+button{font:inherit;cursor:pointer;border:0;border-radius:12px;padding:12px 14px;background:var(--acc2);color:var(--ink)}
+.primary{background:var(--acc);color:#fff;font-size:20px;font-weight:600;width:100%;padding:18px;margin-top:10px}
+.ghost{background:transparent;border:1px solid var(--line)}
+.row{display:flex;gap:8px;align-items:center}
+.list{list-style:none;padding:0;margin:8px 0 0}
+.list li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+.list .t{color:var(--mut);font-size:14px;width:64px}
+.list .n{flex:1}
+.x{background:transparent;color:var(--mut);padding:6px 10px}
+.tabs{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom))}
+.tabs button{flex:1;background:transparent;color:var(--mut);font-weight:600}
+.tabs button.on{color:var(--acc)}
+.wk{display:grid;grid-template-columns:44px 1fr auto;gap:8px;align-items:center;padding:9px 0;border-top:1px solid var(--line)}
+.wk .mini{display:flex;gap:5px}
+.wk .mini i{width:12px;height:12px;border-radius:50%;border:1.5px solid var(--acc)}
+.wk .mini i.f{background:var(--acc)}.wk .mini i.o{background:var(--warn);border-color:var(--warn)}
+.tag{font-size:13px;padding:3px 8px;border-radius:999px}
+.t-on{background:var(--acc2);color:var(--acc)}.t-over{background:var(--warn2);color:var(--warn)}.t-cheat{background:var(--cheat2);color:var(--cheat)}.t-none{color:var(--mut)}
+.today{font-weight:700}
+.score{font-size:40px;font-weight:700}
+.muted{color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:15px}
+td,th{padding:8px 4px;border-top:1px solid var(--line);text-align:left}
+th{color:var(--mut);font-weight:500;font-size:13px}
+.num{text-align:right}
+.toast{position:fixed;left:50%;bottom:84px;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 14px;border-radius:12px;display:flex;gap:12px;align-items:center}
+.toast button{background:transparent;color:var(--bg);text-decoration:underline;padding:0}
+svg{display:block;width:100%}
+</style>
+</head><body><div id="app"></div>
+<script id="state" type="application/json">{"v":1,"start":null,"days":{},"weights":{},"baseline":{"w":296.8,"d":"2026-11-07"},"updated":0}</script>
+<script id="appjs">
+(function(){
+var MAX=5, LS='five-plates-state';
+var embedded=JSON.parse(document.getElementById('state').textContent);
+var local=null;try{local=JSON.parse(localStorage.getItem(LS)||'null')}catch(e){}
+var S=(local&&local.updated>embedded.updated)?local:embedded;
+var tab='today', weekOffset=0, toastT=null, undo=null;
+
+function pad(n){return String(n).padStart(2,'0')}
+function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function parse(s){var p=s.split('-').map(Number);return new Date(p[0],p[1]-1,p[2])}
+function add(s,n){var d=parse(s);d.setDate(d.getDate()+n);return iso(d)}
+function diff(a,b){return Math.round((parse(b)-parse(a))/864e5)}
+function mon(s){var d=parse(s);d.setDate(d.getDate()-((d.getDay()+6)%7));return iso(d)}
+function today(){return iso(new Date())}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+var DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function dname(s){return DN[parse(s).getDay()]}
+function fmt(s){var d=parse(s);return d.toLocaleDateString(undefined,{month:'short',day:'numeric'})}
+function day(s){return S.days[s]||{plates:[],cheat:false}}
+function status(s){var d=day(s);if(!S.first||s<S.first)return d.plates.length||d.cheat?(d.cheat?'cheat':d.plates.length<=MAX?'on':'over'):'empty';if(d.cheat)return'cheat';if(!d.plates.length)return s<today()?'none':'empty';return d.plates.length<=MAX?'on':'over'}
+function weekNum(s){if(!S.start)return 1;return Math.floor(diff(S.start,mon(s))/7)+1}
+function cheatDayIn(m){for(var i=0;i<7;i++){var s=add(m,i);if(day(s).cheat)return s}return null}
+function weekScore(m){var t=today(),on=0,n=0;for(var i=0;i<7;i++){var s=add(m,i);if(s>t)break;var st=status(s);if(st==='empty')continue;n++;if(st==='on'||st==='cheat')on++}return{on:on,n:n}}
+function lastActive(before){var keys=Object.keys(S.days).filter(function(k){var d=S.days[k];return k<before&&(d.plates.length||d.cheat)}).sort();return keys.length?keys[keys.length-1]:null}
+function restarts(){var keys=Object.keys(S.days).filter(function(k){var d=S.days[k];return d.plates.length||d.cheat}).sort(),c=0;for(var i=1;i<keys.length;i++)if(diff(keys[i-1],keys[i])>=3)c++;return c}
+
+function save(){S.updated=Date.now();if(!S.start)S.start=mon(today());if(!S.first)S.first=today();try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}schedule()}
+function schedule(){}
+
+function toast(msg,undoFn){undo=undoFn||null;clearTimeout(toastT);render();var el=document.createElement('div');el.className='toast';el.innerHTML='<span>'+esc(msg)+'</span>'+(undo?'<button id="undo">Undo</button>':'');document.body.appendChild(el);if(undo)el.querySelector('#undo').onclick=function(){undo();undo=null;el.remove();save();render()};toastT=setTimeout(function(){el.remove()},5000)}
+
+function addPlate(){var t=today(),inp=document.getElementById('note'),d=day(t);var now=new Date();d.plates.push({t:pad(now.getHours())+':'+pad(now.getMinutes()),n:(inp&&inp.value.trim())||''});S.days[t]=d;if(inp)inp.value='';save();render()}
+function delPlate(i){var t=today(),d=day(t),p=d.plates.splice(i,1)[0];S.days[t]=d;save();toast('Plate removed',function(){d.plates.splice(i,0,p)})}
+function toggleCheat(){var t=today(),d=day(t);d.cheat=!d.cheat;S.days[t]=d;save();render()}
+function saveWeight(m){var el=document.getElementById('wt');var v=parseFloat(el&&el.value);if(!(v>50&&v<1000))return;S.weights[m]={w:v,d:today()};save();render()}
+
+function dotsHTML(n,cls,small){var h='',k=Math.max(MAX,n);for(var i=0;i<k;i++){var c=i<n?(i<MAX?'f':'o'):'';h+=small?'<i class="'+c+'"></i>':'<div class="dot '+c+'"></div>'}return h}
+
+function vToday(){
+  var t=today(),d=day(t),n=d.plates.length,m=mon(t),wn=weekNum(t),dow=parse(t).getDay(),h='';
+  h+='<h1>'+parse(t).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})+'</h1><div class="sub">Week '+wn+'</div>';
+  var la=lastActive(t);
+  if(!n&&!d.cheat&&la&&diff(la,t)>=3)h+='<div class="banner b-go"><b>Welcome back.</b> Missed days don\'t erase anything. Today counts the same as any other day. Log your next plate.</div>';
+  if(wn>=5&&wn<=8){var a=0,c=0;for(var w=1;w<=4;w++){var sc=weekScore(add(S.start,(w-1)*7));if(sc.n){a+=sc.on/sc.n;c++}}h+='<div class="banner b-warn"><b>Weeks 5 to 8.</b> This is where it slipped last time. Results feel good enough to ease off. Don\'t loosen the rules.'+(c?' First four weeks averaged '+Math.round(a/c*100)+'% on plan.':'')+'</div>'}
+  if(dow===5||dow===6||dow===0){var cd=cheatDayIn(m);h+='<div class="banner b-cheat"><b>Weekend.</b> Your hardest stretch. Decide where your 5 plates go before the day gets away.'+(cd?'':' Cheat day still available this week.')+'</div>'}
+  if(!S.weights[m])h+='<div class="card"><b>'+(dow===1?'Weigh-in day':'This week\'s weigh-in')+'</b><div class="sub">Monday morning, before food. Compare Monday to Monday.</div><div class="row" style="margin-top:10px"><input id="wt" type="number" inputmode="decimal" step="0.1" placeholder="lbs"><button id="wtb">Save</button></div></div>';
+  h+='<div class="card">';
+  if(d.cheat){h+='<div class="count"><div class="big" style="font-size:40px">Cheat day</div><div class="sub" style="margin-top:6px">Logging plates is optional today.</div></div>'}
+  else{h+='<div class="count"><div class="big" style="'+(n>MAX?'color:var(--warn)':'')+'">'+n+' <small>of '+MAX+'</small></div><div class="dots">'+dotsHTML(n,'',false)+'</div><div class="sub">'+(n<MAX?(MAX-n)+' left today':n===MAX?'All 5 used. Kitchen\'s closed.':'Over by '+(n-MAX)+'. Log it anyway. Tomorrow resets.')+'</div></div>'}
+  h+='<input id="note" placeholder="Note (optional)" style="margin-top:12px"><button class="primary" id="add">+ Plate</button>';
+  if(n){h+='<ul class="list">';d.plates.forEach(function(p,i){h+='<li><span class="t">'+esc(p.t)+'</span><span class="n">'+(p.n?esc(p.n):'<span class="muted">Plate '+(i+1)+'</span>')+'</span><button class="x" data-del="'+i+'">✕</button></li>'});h+='</ul>'}
+  h+='</div>';
+  var cd2=cheatDayIn(m);
+  if(d.cheat)h+='<button class="ghost" id="cheat" style="width:100%">Undo cheat day</button>';
+  else if(cd2)h+='<div class="sub" style="text-align:center">Cheat day used this week ('+dname(cd2)+').</div>';
+  else h+='<button class="ghost" id="cheat" style="width:100%">Make today my cheat day</button>';
+  return h;
+}
+
+function vWeek(){
+  var t=today(),m=add(mon(t),weekOffset*7),sc=weekScore(m),w=S.weights[m],pw=S.weights[add(m,-7)],h='';
+  h+='<div class="row" style="justify-content:space-between"><button class="ghost" id="prev">‹</button><div style="text-align:center"><h1>Week of '+fmt(m)+'</h1><div class="sub">Week '+weekNum(m)+'</div></div><button class="ghost" id="next"'+(weekOffset>=0?' disabled style="opacity:.3"':'')+'>›</button></div>';
+  h+='<div class="card"><div class="score">'+sc.on+'<span class="muted" style="font-size:22px"> / '+sc.n+' days on plan</span></div><div class="sub">'+(sc.n?Math.round(sc.on/sc.n*100)+'%. ':'')+'Cheat day counts as on plan. Days you didn\'t log count against.</div>';
+  for(var i=0;i<7;i++){var s=add(m,i),st=status(s),dd=day(s),lbl={on:'On plan',over:'Over',cheat:'Cheat',none:'No log',empty:''}[st];
+    h+='<div class="wk"><span class="'+(s===t?'today':'')+'">'+dname(s)+'</span><span class="mini">'+(st==='cheat'?'':dotsHTML(dd.plates.length,'',true))+'</span><span>'+(lbl?'<span class="tag t-'+st+'">'+lbl+'</span>':'')+'</span></div>'}
+  h+='</div><div class="card"><b>Weigh-in</b><div style="margin-top:6px">'+(w?'<span class="score" style="font-size:28px">'+w.w.toFixed(1)+'</span> lbs'+(pw?' <span class="muted">('+((w.w-pw.w)>0?'+':'')+(w.w-pw.w).toFixed(1)+' vs last week)</span>':''):'<span class="muted">Not entered</span>')+'</div></div>';
+  return h;
+}
+
+function vProgress(){
+  var t=today(),h='<h1>Progress</h1>';
+  var pts=[{d:S.baseline.d,w:S.baseline.w}];Object.keys(S.weights).sort().forEach(function(k){pts.push({d:k,w:S.weights[k].w})});
+  var last=pts[pts.length-1];
+  h+='<div class="card"><div class="sub">Since start ('+fmt(S.baseline.d)+', '+S.baseline.w.toFixed(1)+')</div><div class="score">'+(last.w-S.baseline.w>0?'+':'')+(last.w-S.baseline.w).toFixed(1)+' <span class="muted" style="font-size:20px">lbs</span></div>';
+  if(pts.length>1){var W=320,H=90,ws=pts.map(function(p){return p.w}),lo=Math.min.apply(0,ws)-1,hi=Math.max.apply(0,ws)+1,path=pts.map(function(p,i){return(i?'L':'M')+(10+i*(W-20)/(pts.length-1)).toFixed(1)+','+(H-8-(p.w-lo)/(hi-lo)*(H-16)).toFixed(1)}).join('');h+='<svg viewBox="0 0 '+W+' '+H+'"><path d="'+path+'" fill="none" stroke="var(--acc)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/></svg>'}
+  h+='</div>';
+  var rs=restarts();
+  h+='<div class="card"><b>Restarts: '+rs+'</b><div class="sub">Times you came back after 2+ days off. Getting back on track is the habit that counts.</div></div>';
+  h+='<div class="card"><table><tr><th>Week of</th><th>On plan</th><th class="num">Weight</th></tr>';
+  var m=mon(t),first=S.start||m;for(var x=m;x>=first;x=add(x,-7)){var sc=weekScore(x),w=S.weights[x];h+='<tr><td>'+fmt(x)+'</td><td>'+(sc.n?sc.on+'/'+sc.n:'<span class="muted">none</span>')+'</td><td class="num">'+(w?w.w.toFixed(1):'')+'</td></tr>'}
+  h+='</table></div><div class="card"><b>Backup</b><div class="sub">Data lives only in this browser. Save a backup now and then.</div><div class="row" style="margin-top:10px"><button class="ghost" id="dl" style="flex:1">Save backup</button><button class="ghost" id="rs" style="flex:1">Restore</button></div><input type="file" id="rf" accept=".json,application/json" style="display:none"></div>';
+  return h;
+}
+
+function render(){
+  var app=document.getElementById('app'),note=document.getElementById('note'),nv=note?note.value:'';
+  app.innerHTML=(tab==='today'?vToday():tab==='week'?vWeek():vProgress())+'<nav class="tabs"><button data-tab="today"'+(tab==='today'?' class="on"':'')+'>Today</button><button data-tab="week"'+(tab==='week'?' class="on"':'')+'>Week</button><button data-tab="progress"'+(tab==='progress'?' class="on"':'')+'>Progress</button></nav>';
+  var n2=document.getElementById('note');if(n2)n2.value=nv;
+  app.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){tab=b.dataset.tab;weekOffset=0;render();scrollTo(0,0)}});
+  app.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){delPlate(+b.dataset.del)}});
+  var q=function(id){return document.getElementById(id)};
+  if(q('add'))q('add').onclick=addPlate;
+  if(q('cheat'))q('cheat').onclick=toggleCheat;
+  if(q('wtb'))q('wtb').onclick=function(){saveWeight(mon(today()))};
+  if(q('prev'))q('prev').onclick=function(){weekOffset--;render()};
+  if(q('next'))q('next').onclick=function(){if(weekOffset<0){weekOffset++;render()}};
+  if(q('dl'))q('dl').onclick=function(){var b=new Blob([JSON.stringify(S)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='5plates-backup-'+today()+'.json';document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(u)},1000)};
+  if(q('rs'))q('rs').onclick=function(){q('rf').click()};
+  if(q('rf'))q('rf').onchange=function(e){var f=e.target.files[0];if(!f)return;f.text().then(function(t){var x=JSON.parse(t);if(!x||!x.days||!x.weights)throw 0;S=x;save();toast('Backup restored')}).catch(function(){toast('Not a valid backup file')})};
+}
+render();
+setInterval(function(){if(document.getElementById('app').dataset.day!==today()){document.getElementById('app').dataset.day=today();render()}},60000);
+})();
+</script>
+</body></html>
