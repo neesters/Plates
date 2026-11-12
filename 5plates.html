@@ -59,7 +59,7 @@ var MAX=5, LS='five-plates-state';
 var embedded=JSON.parse(document.getElementById('state').textContent);
 var local=null;try{local=JSON.parse(localStorage.getItem(LS)||'null')}catch(e){}
 var S=(local&&local.updated>embedded.updated)?local:embedded;
-var tab='today', weekOffset=0, toastT=null, undo=null;
+var tab='today', weekOffset=0, editDay=null, ROLL=4, toastT=null, undo=null;
 
 function pad(n){return String(n).padStart(2,'0')}
 function iso(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
@@ -67,7 +67,7 @@ function parse(s){var p=s.split('-').map(Number);return new Date(p[0],p[1]-1,p[2
 function add(s,n){var d=parse(s);d.setDate(d.getDate()+n);return iso(d)}
 function diff(a,b){return Math.round((parse(b)-parse(a))/864e5)}
 function mon(s){var d=parse(s);d.setDate(d.getDate()-((d.getDay()+6)%7));return iso(d)}
-function today(){return iso(new Date())}
+function today(){var d=new Date();d.setHours(d.getHours()-ROLL);return iso(d)}
 function esc(s){return String(s).replace(/[&<>"]/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
 var DN=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 function dname(s){return DN[parse(s).getDay()]}
@@ -85,8 +85,8 @@ function schedule(){}
 
 function toast(msg,undoFn){undo=undoFn||null;clearTimeout(toastT);render();var el=document.createElement('div');el.className='toast';el.innerHTML='<span>'+esc(msg)+'</span>'+(undo?'<button id="undo">Undo</button>':'');document.body.appendChild(el);if(undo)el.querySelector('#undo').onclick=function(){undo();undo=null;el.remove();save();render()};toastT=setTimeout(function(){el.remove()},5000)}
 
-function addPlate(){var t=today(),inp=document.getElementById('note'),d=day(t);var now=new Date();d.plates.push({t:pad(now.getHours())+':'+pad(now.getMinutes()),n:(inp&&inp.value.trim())||''});S.days[t]=d;if(inp)inp.value='';save();render()}
-function delPlate(i){var t=today(),d=day(t),p=d.plates.splice(i,1)[0];S.days[t]=d;save();toast('Plate removed',function(){d.plates.splice(i,0,p)})}
+function addPlate(dayKey){var t=dayKey||today(),inp=document.getElementById('note'),tm=document.getElementById('ptime'),d=day(t);var now=new Date();d.plates.push({t:(tm&&tm.value)||(dayKey&&dayKey!==today()?'added':pad(now.getHours())+':'+pad(now.getMinutes())),n:(inp&&inp.value.trim())||''});S.days[t]=d;if(inp)inp.value='';save();render()}
+function delPlate(i,dayKey){var t=dayKey||today(),d=day(t),p=d.plates.splice(i,1)[0];S.days[t]=d;save();toast('Plate removed',function(){d.plates.splice(i,0,p)})}
 function toggleCheat(){var t=today(),d=day(t);d.cheat=!d.cheat;S.days[t]=d;save();render()}
 function saveWeight(m){var el=document.getElementById('wt');var v=parseFloat(el&&el.value);if(!(v>50&&v<1000))return;S.weights[m]={w:v,d:today()};save();render()}
 
@@ -103,7 +103,7 @@ function vToday(){
   h+='<div class="card">';
   if(d.cheat){h+='<div class="count"><div class="big" style="font-size:40px">Cheat day</div><div class="sub" style="margin-top:6px">Logging plates is optional today.</div></div>'}
   else{h+='<div class="count"><div class="big" style="'+(n>MAX?'color:var(--warn)':'')+'">'+n+' <small>of '+MAX+'</small></div><div class="dots">'+dotsHTML(n,'',false)+'</div><div class="sub">'+(n<MAX?(MAX-n)+' left today':n===MAX?'All 5 used. Kitchen\'s closed.':'Over by '+(n-MAX)+'. Log it anyway. Tomorrow resets.')+'</div></div>'}
-  h+='<input id="note" placeholder="Note (optional)" style="margin-top:12px"><button class="primary" id="add">+ Plate</button>';
+  h+='<input id="note" placeholder="Note (optional)" style="margin-top:12px"><button class="primary" id="add">+ Plate</button><div class="sub" style="text-align:center;margin-top:8px">Day rolls over at 4 AM. Late nights count as the day before.</div>';
   if(n){h+='<ul class="list">';d.plates.forEach(function(p,i){h+='<li><span class="t">'+esc(p.t)+'</span><span class="n">'+(p.n?esc(p.n):'<span class="muted">Plate '+(i+1)+'</span>')+'</span><button class="x" data-del="'+i+'">✕</button></li>'});h+='</ul>'}
   h+='</div>';
   var cd2=cheatDayIn(m);
@@ -118,11 +118,18 @@ function vWeek(){
   h+='<div class="row" style="justify-content:space-between"><button class="ghost" id="prev">‹</button><div style="text-align:center"><h1>Week of '+fmt(m)+'</h1><div class="sub">Week '+weekNum(m)+'</div></div><button class="ghost" id="next"'+(weekOffset>=0?' disabled style="opacity:.3"':'')+'>›</button></div>';
   h+='<div class="card"><div class="score">'+sc.on+'<span class="muted" style="font-size:22px"> / '+sc.n+' days on plan</span></div><div class="sub">'+(sc.n?Math.round(sc.on/sc.n*100)+'%. ':'')+'Cheat day counts as on plan. Days you didn\'t log count against.</div>';
   for(var i=0;i<7;i++){var s=add(m,i),st=status(s),dd=day(s),lbl={on:'On plan',over:'Over',cheat:'Cheat',none:'No log',empty:''}[st];
-    h+='<div class="wk"><span class="'+(s===t?'today':'')+'">'+dname(s)+'</span><span class="mini">'+(st==='cheat'?'':dotsHTML(dd.plates.length,'',true))+'</span><span>'+(lbl?'<span class="tag t-'+st+'">'+lbl+'</span>':'')+'</span></div>'}
-  h+='</div><div class="card"><b>Weigh-in</b><div style="margin-top:6px">'+(w?'<span class="score" style="font-size:28px">'+w.w.toFixed(1)+'</span> lbs'+(pw?' <span class="muted">('+((w.w-pw.w)>0?'+':'')+(w.w-pw.w).toFixed(1)+' vs last week)</span>':''):'<span class="muted">Not entered</span>')+'</div></div>';
+    h+='<div class="wk" data-day="'+s+'" style="cursor:pointer"><span class="'+(s===t?'today':'')+'">'+dname(s)+'</span><span class="mini">'+(st==='cheat'?'':dotsHTML(dd.plates.length,'',true))+'</span><span>'+(lbl?'<span class="tag t-'+st+'">'+lbl+'</span>':'')+'</span></div>'}
+  h+='<div class="sub" style="margin-top:8px">Tap a day to add or fix plates.</div></div><div class="card"><b>Weigh-in</b><div style="margin-top:6px">'+(w?'<span class="score" style="font-size:28px">'+w.w.toFixed(1)+'</span> lbs'+(pw?' <span class="muted">('+((w.w-pw.w)>0?'+':'')+(w.w-pw.w).toFixed(1)+' vs last week)</span>':''):'<span class="muted">Not entered</span>')+'</div></div>';
   return h;
 }
 
+function vDay(){
+  var s=editDay,d=day(s),n=d.plates.length,h='';
+  h+='<div class="row" style="justify-content:space-between"><button class="ghost" id="back">‹ Week</button><div style="text-align:right"><h1>'+parse(s).toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'})+'</h1><div class="sub">'+(d.cheat?'Cheat day':n+' plate'+(n===1?'':'s')+(n>MAX?', over by '+(n-MAX):''))+'</div></div></div>';
+  h+='<div class="card"><div class="sub">Add a plate to this day. Time is optional.</div><div class="row" style="margin-top:10px"><input id="note" placeholder="Note (optional)" style="flex:2"><input id="ptime" type="time" style="flex:1"></div><button class="primary" id="addday">+ Plate to this day</button>';
+  if(n){h+='<ul class="list">';d.plates.forEach(function(p,i){h+='<li><span class="t">'+esc(p.t)+'</span><span class="n">'+(p.n?esc(p.n):'<span class="muted">Plate '+(i+1)+'</span>')+'</span><button class="x" data-delday="'+i+'">✕</button></li>'});h+='</ul>'}
+  h+='</div>';return h;
+}
 function vProgress(){
   var t=today(),h='<h1>Progress</h1>';
   var pts=[{d:S.baseline.d,w:S.baseline.w}];Object.keys(S.weights).sort().forEach(function(k){pts.push({d:k,w:S.weights[k].w})});
@@ -140,12 +147,16 @@ function vProgress(){
 
 function render(){
   var app=document.getElementById('app'),note=document.getElementById('note'),nv=note?note.value:'';
-  app.innerHTML=(tab==='today'?vToday():tab==='week'?vWeek():vProgress())+'<nav class="tabs"><button data-tab="today"'+(tab==='today'?' class="on"':'')+'>Today</button><button data-tab="week"'+(tab==='week'?' class="on"':'')+'>Week</button><button data-tab="progress"'+(tab==='progress'?' class="on"':'')+'>Progress</button></nav>';
+  app.innerHTML=(tab==='today'?vToday():tab==='week'?vWeek():tab==='day'?vDay():vProgress())+'<nav class="tabs"><button data-tab="today"'+(tab==='today'?' class="on"':'')+'>Today</button><button data-tab="week"'+(tab==='week'||tab==='day'?' class="on"':'')+'>Week</button><button data-tab="progress"'+(tab==='progress'?' class="on"':'')+'>Progress</button></nav>';
   var n2=document.getElementById('note');if(n2)n2.value=nv;
   app.querySelectorAll('[data-tab]').forEach(function(b){b.onclick=function(){tab=b.dataset.tab;weekOffset=0;render();scrollTo(0,0)}});
   app.querySelectorAll('[data-del]').forEach(function(b){b.onclick=function(){delPlate(+b.dataset.del)}});
   var q=function(id){return document.getElementById(id)};
-  if(q('add'))q('add').onclick=addPlate;
+  if(q('add'))q('add').onclick=function(){addPlate()};
+  app.querySelectorAll('[data-day]').forEach(function(b){b.onclick=function(){editDay=b.dataset.day;tab='day';render();scrollTo(0,0)}});
+  app.querySelectorAll('[data-delday]').forEach(function(b){b.onclick=function(){delPlate(+b.dataset.delday,editDay)}});
+  if(q('addday'))q('addday').onclick=function(){addPlate(editDay)};
+  if(q('back'))q('back').onclick=function(){tab='week';render()};
   if(q('cheat'))q('cheat').onclick=toggleCheat;
   if(q('wtb'))q('wtb').onclick=function(){saveWeight(mon(today()))};
   if(q('prev'))q('prev').onclick=function(){weekOffset--;render()};
